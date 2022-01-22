@@ -455,9 +455,17 @@ def test(dataset_path, num_rnn_layers=1, num_neurons_in_rnn_layer=32, is_bidirec
 def test_video(video_path, shape_predictor_file, model):
     global shape_predictor
     shape_predictor = dlib.shape_predictor(shape_predictor_file)
-
+    dirname = 'frameTest'
+    i=0
+    os.mkdir(dirname)
     model = load_model(model)
 
+
+
+
+
+
+    print(os.getcwd())
     frames = []
     # if video_path is a directory full of frames, read all the frames in from that directory
     if os.path.isdir(video_path):
@@ -466,23 +474,30 @@ def test_video(video_path, shape_predictor_file, model):
             img = cv2.imread(os.path.join(video_path, frame_name))
             img = resize(img, (256, 320))
             frames.append(img)
+
     else:
         cap = cv2.VideoCapture(video_path)
         while True:
             ret, img = cap.read()
             if not ret:
                 break
-            img = resize(img, (256, 320))
+            #img = resize(img, (256, 320))
+            cv2.imwrite(os.path.join(dirname,"frame-%d.jpg" % i),img)
             frames.append(img)
+            #Modif D
+            print("creating frame " + str(i))
+            i=i+1
+
 
     print('Fetched ' + str(len(frames)) + ' frames from the video.')
     state = 'Processing'
 
     font = cv2.FONT_HERSHEY_SIMPLEX
-
+    findfirst=True
+    framefirst=0
     frame_num = 0
     input_sequence = []
-    while True:
+    while findfirst:
         frame = frames[frame_num]
         img = frames[frame_num].copy()
 
@@ -490,13 +505,14 @@ def test_video(video_path, shape_predictor_file, model):
         #frame1=cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
         (dets, facial_points_vector) = get_facial_landmark_vectors_from_frame(frame)
-        print('cane')
+        print("processing frame number"+ str(frame_num))
         if not dets or not facial_points_vector:
+
             frame_num += 1
             # loop back to the beginning of the frame set
             if frame_num == len(frames):
                 frame_num = 0
-                print('can2')
+
             continue
 
         # draw a box showing the detected face
@@ -508,7 +524,7 @@ def test_video(video_path, shape_predictor_file, model):
             # draw the state label below the face
             cv2.rectangle(img, (d.left(), d.bottom()), (d.right(), d.bottom() + 10), (0, 0, 255), cv2.FILLED)
             cv2.putText(img, state, (d.left() + 2, d.bottom() + 10 - 3), font, 0.3, (255, 255, 255), 1, cv2.LINE_AA)
-
+        print("FIRST IM.SHOW")
         cv2.imshow('Video', img)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
@@ -516,9 +532,15 @@ def test_video(video_path, shape_predictor_file, model):
         # add the facial points vector to the current input sequence vector for the RNN
         input_sequence.append(facial_points_vector)
 
+        print("lunghezza inputsequence:"+str(len(input_sequence)))
+
+
+
         if len(input_sequence) >= FRAME_SEQ_LEN:
+            print("I'M HERE")
             # get the most recent N sequences where N=FRAME_SEQ_LEN
             seq = input_sequence[-1 * FRAME_SEQ_LEN:]
+            #seq=input_sequence
             f = []
             for coords in seq:
                 part_61 = (int(coords[2 * 61]), int(coords[2 * 61 + 1]))
@@ -549,10 +571,17 @@ def test_video(video_path, shape_predictor_file, model):
             # convert y_pred from categorized continuous to single label
             y_pred_max = y_pred[0].argmax()
             print('y_pred=' + str(y_pred) + ' y_pred_max=' + str(y_pred_max))
+            if y_pred_max==1:
+                framefirst=frame_num -25
+                print(framefirst)
+                findfirst=False
+                print("FOUND FIRST SPEAKING FRAME")
+
 
             for k in CLASS_HASH:
                 if y_pred_max == CLASS_HASH[k]:
                     state = k;
+                    print("THE STATE OF THIS FRAME "+ state)
                     break
 
             # redraw the label
@@ -561,6 +590,7 @@ def test_video(video_path, shape_predictor_file, model):
                 cv2.rectangle(img, (d.left(), d.bottom()), (d.right(), d.bottom() + 10), (0, 0, 255), cv2.FILLED)
                 cv2.putText(img, state, (d.left() + 2, d.bottom() + 10 - 3), font, 0.3, (255, 255, 255), 1, cv2.LINE_AA)
 
+            print('SECOND IM.SHOW')
             cv2.imshow('Video', img)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
@@ -568,7 +598,7 @@ def test_video(video_path, shape_predictor_file, model):
         frame_num += 1
         # loop back to the beginning of the frame set
         if frame_num == len(frames):
-            frame_num = 0
+           frame_num = 0
 
 
 def get_facial_landmark_vectors_from_frame(frame):
